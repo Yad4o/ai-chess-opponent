@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 import chess
 
 from engine.stockfish_engine import get_engine
+from engine.adaptive_engine import get_adaptive_move
 from analysis.move_analyzer import analyze_user_move
-from profiling.weakness_profiler import get_player_stats
+from profiling.weakness_profiler import get_player_stats, get_dominant_weakness
 from database.db import get_db, init_db
 from models.game import Game, Move
 
@@ -107,7 +108,8 @@ async def make_move(req: MoveRequest, db: Session = Depends(get_db)):
             db.commit()
 
         eval_now = engine.evaluate_position(req.fen)
-        best_move = engine.get_best_move(req.fen)
+        weakness = get_dominant_weakness(db, req.player_id)
+        best_move = get_adaptive_move(engine, req.fen, weakness)
         if not best_move:
             raise HTTPException(status_code=400, detail="No legal moves available")
 
@@ -120,6 +122,16 @@ async def make_move(req: MoveRequest, db: Session = Depends(get_db)):
         }
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+
+@app.patch("/api/game/{game_id}/result")
+async def update_game_result(game_id: int, result: str, db: Session = Depends(get_db)):
+    game = db.query(Game).filter(Game.id == game_id).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    game.result = result
+    db.commit()
+    return {"game_id": game_id, "result": result}
 
 
 @app.get("/api/profile/{player_id}")
