@@ -9,12 +9,21 @@ STOCKFISH_PATHS = [
     "/usr/bin/stockfish",
     "/usr/local/bin/stockfish",
     "stockfish",
+    # Windows common locations
+    r"C:\Users\Public\stockfish\stockfish.exe",
+    r"C:\stockfish\stockfish.exe",
+    r"C:\Program Files\stockfish\stockfish.exe",
 ]
+
+# Set this env var to override: STOCKFISH_PATH=C:\path\to\stockfish.exe
+_ENV_PATH = os.environ.get("STOCKFISH_PATH")
 
 
 def find_stockfish() -> Optional[str]:
+    if _ENV_PATH and os.path.isfile(_ENV_PATH):
+        return _ENV_PATH
     for path in STOCKFISH_PATHS:
-        if os.path.isfile(path) and os.access(path, os.X_OK):
+        if os.path.isfile(path):
             return path
     import shutil
     return shutil.which("stockfish")
