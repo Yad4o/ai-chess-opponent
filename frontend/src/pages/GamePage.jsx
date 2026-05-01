@@ -1,9 +1,26 @@
+import { useState, useEffect } from "react";
 import { useChessGame } from "../hooks/useChessGame";
 import { ChessBoard } from "../components/ChessBoard";
 import { EvalBar } from "../components/EvalBar";
 import { MoveHistory } from "../components/MoveHistory";
 
+function useBoardSize() {
+  const [size, setSize] = useState(420);
+  useEffect(() => {
+    function calc() {
+      const byW = window.innerWidth - 280 - 28 - 90;
+      const byH = window.innerHeight - 60 - 64 - 64 - 52 - 40;
+      setSize(Math.max(260, Math.min(byW, byH, 460)));
+    }
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, []);
+  return size;
+}
+
 export function GamePage() {
+  const boardSize = useBoardSize();
   const {
     game,
     moveHistory,
@@ -36,7 +53,7 @@ export function GamePage() {
       <div className="game-layout">
         {/* Left: eval bar + board */}
         <div className="board-panel">
-          <EvalBar evaluation={evaluation} />
+          <EvalBar evaluation={evaluation} boardWidth={boardSize} />
           <div className="board-column">
             {gameOver && (
               <div className="game-over-banner">
@@ -45,7 +62,7 @@ export function GamePage() {
             )}
 
             {!gameStarted ? (
-              <div className="start-screen">
+              <div className="start-screen" style={{ width: boardSize, height: boardSize }}>
                 <div className="start-card">
                   <span className="start-chess-icon">♟</span>
                   <h2>Ready to Play?</h2>
@@ -61,6 +78,7 @@ export function GamePage() {
                 onDrop={makeMove}
                 isAIThinking={isAIThinking}
                 orientation={orientation}
+                boardWidth={boardSize}
               />
             )}
           </div>

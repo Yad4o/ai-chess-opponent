@@ -1,33 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useRef } from "react";
 import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
 
 const DARK_SQUARE = "#4a7a4a";
 const LIGHT_SQUARE = "#d4c5a9";
 
-function useResponsiveBoardWidth() {
+export function ChessBoard({ game, onDrop, isAIThinking, orientation = "white", boardWidth = 420 }) {
   const wrapperRef = useRef(null);
-  const [width, setWidth] = useState(420);
-
-  useEffect(() => {
-    function calculate() {
-      // Width: viewport minus right panel (280) + eval bar (28) + gaps/padding (90)
-      const byWidth = window.innerWidth - 280 - 28 - 90;
-      // Height: viewport minus nav (60) + page padding (64) + player bar (64) + controls (52) + gaps (40)
-      const byHeight = window.innerHeight - 60 - 64 - 64 - 52 - 40;
-      const size = Math.min(byWidth, byHeight, 460);
-      setWidth(Math.max(260, size));
-    }
-    calculate();
-    window.addEventListener("resize", calculate);
-    return () => window.removeEventListener("resize", calculate);
-  }, []);
-
-  return { wrapperRef, width };
-}
-
-export function ChessBoard({ game, onDrop, isAIThinking, orientation = "white" }) {
-  const { wrapperRef, width } = useResponsiveBoardWidth();
+  const width = boardWidth;
   const history = game.history({ verbose: true });
   const lastMove = history[history.length - 1];
 
@@ -38,25 +18,19 @@ export function ChessBoard({ game, onDrop, isAIThinking, orientation = "white" }
       }
     : {};
 
-  // Must be synchronous — react-chessboard uses the return value immediately
-  // to decide whether to snap the piece back. We validate locally with chess.js,
-  // then fire the async AI request via onDrop if valid.
-  function onPieceDrop(sourceSquare, targetSquare, piece) {
+  // Must be synchronous — react-chessboard uses the return value immediately.
+  // Always use "q" promotion: chess.js ignores it for non-promotion moves,
+  // and auto-promotes to queen for pawn promotions.
+  function onPieceDrop(sourceSquare, targetSquare) {
     const testGame = new Chess(game.fen());
-    const result = testGame.move({
-      from: sourceSquare,
-      to: targetSquare,
-      promotion: piece[1]?.toLowerCase() ?? "q",
-    });
-    if (!result) return false; // illegal move — snap back
-
-    // Move is legal: hand off to the hook (async AI call happens there)
-    onDrop({ from: sourceSquare, to: targetSquare, promotion: piece[1]?.toLowerCase() ?? "q" });
+    const result = testGame.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
+    if (!result) return false;
+    onDrop({ from: sourceSquare, to: targetSquare, promotion: "q" });
     return true;
   }
 
   return (
-    <div className="board-wrapper" ref={wrapperRef}>
+    <div className="board-wrapper" ref={wrapperRef} style={{ "--board-w": `${width}px` }}>
       <Chessboard
         position={game.fen()}
         onPieceDrop={onPieceDrop}
@@ -71,9 +45,7 @@ export function ChessBoard({ game, onDrop, isAIThinking, orientation = "white" }
           borderRadius: "8px",
           boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
         }}
-        isDraggablePiece={({ piece }) =>
-          !isAIThinking && piece[0] === (orientation === "white" ? "w" : "b")
-        }
+        isDraggablePiece={() => !isAIThinking}
       />
       {isAIThinking && (
         <div className="ai-thinking-overlay">
