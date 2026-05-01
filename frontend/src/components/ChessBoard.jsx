@@ -1,11 +1,19 @@
 import { Chessboard } from "react-chessboard";
 
-const PIECE_STYLE = {
-  customDarkSquareStyle: { backgroundColor: "#769656" },
-  customLightSquareStyle: { backgroundColor: "#eeeed2" },
-};
+const DARK_SQUARE = "#4a7a4a";
+const LIGHT_SQUARE = "#d4c5a9";
 
 export function ChessBoard({ game, onDrop, isAIThinking, orientation = "white" }) {
+  const history = game.history({ verbose: true });
+  const lastMove = history[history.length - 1];
+
+  const highlightSquares = lastMove
+    ? {
+        [lastMove.from]: { backgroundColor: "rgba(226, 185, 111, 0.4)" },
+        [lastMove.to]: { backgroundColor: "rgba(226, 185, 111, 0.55)" },
+      }
+    : {};
+
   function onPieceDrop(sourceSquare, targetSquare, piece) {
     return onDrop({
       from: sourceSquare,
@@ -23,8 +31,9 @@ export function ChessBoard({ game, onDrop, isAIThinking, orientation = "white" }
         areArrowsAllowed
         animationDuration={200}
         boardWidth={560}
-        customDarkSquareStyle={PIECE_STYLE.customDarkSquareStyle}
-        customLightSquareStyle={PIECE_STYLE.customLightSquareStyle}
+        customDarkSquareStyle={{ backgroundColor: DARK_SQUARE }}
+        customLightSquareStyle={{ backgroundColor: LIGHT_SQUARE }}
+        customSquareStyles={highlightSquares}
         customBoardStyle={{
           borderRadius: "8px",
           boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
