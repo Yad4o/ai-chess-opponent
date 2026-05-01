@@ -1,9 +1,33 @@
+import { useState, useEffect, useRef } from "react";
 import { Chessboard } from "react-chessboard";
+import { Chess } from "chess.js";
 
 const DARK_SQUARE = "#4a7a4a";
 const LIGHT_SQUARE = "#d4c5a9";
 
+function useResponsiveBoardWidth() {
+  const wrapperRef = useRef(null);
+  const [width, setWidth] = useState(480);
+
+  useEffect(() => {
+    function calculate() {
+      // Available width = viewport minus right panel (280px), eval bar (28px), gaps/padding (~80px)
+      const available = Math.min(
+        window.innerWidth - 280 - 28 - 80,
+        560
+      );
+      setWidth(Math.max(280, available));
+    }
+    calculate();
+    window.addEventListener("resize", calculate);
+    return () => window.removeEventListener("resize", calculate);
+  }, []);
+
+  return { wrapperRef, width };
+}
+
 export function ChessBoard({ game, onDrop, isAIThinking, orientation = "white" }) {
+  const { wrapperRef, width } = useResponsiveBoardWidth();
   const history = game.history({ verbose: true });
   const lastMove = history[history.length - 1];
 
@@ -14,23 +38,32 @@ export function ChessBoard({ game, onDrop, isAIThinking, orientation = "white" }
       }
     : {};
 
+  // Must be synchronous — react-chessboard uses the return value immediately
+  // to decide whether to snap the piece back. We validate locally with chess.js,
+  // then fire the async AI request via onDrop if valid.
   function onPieceDrop(sourceSquare, targetSquare, piece) {
-    return onDrop({
+    const testGame = new Chess(game.fen());
+    const result = testGame.move({
       from: sourceSquare,
       to: targetSquare,
       promotion: piece[1]?.toLowerCase() ?? "q",
     });
+    if (!result) return false; // illegal move — snap back
+
+    // Move is legal: hand off to the hook (async AI call happens there)
+    onDrop({ from: sourceSquare, to: targetSquare, promotion: piece[1]?.toLowerCase() ?? "q" });
+    return true;
   }
 
   return (
-    <div className="board-wrapper">
+    <div className="board-wrapper" ref={wrapperRef}>
       <Chessboard
         position={game.fen()}
         onPieceDrop={onPieceDrop}
         boardOrientation={orientation}
         areArrowsAllowed
         animationDuration={200}
-        boardWidth={560}
+        boardWidth={width}
         customDarkSquareStyle={{ backgroundColor: DARK_SQUARE }}
         customLightSquareStyle={{ backgroundColor: LIGHT_SQUARE }}
         customSquareStyles={highlightSquares}
