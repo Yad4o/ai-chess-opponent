@@ -3,8 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
+import chess
 
 from engine.stockfish_engine import get_engine
+from analysis.move_analyzer import analyze_user_move
 from database.db import get_db, init_db
 from models.game import Game, Move
 
@@ -28,6 +30,7 @@ class MoveRequest(BaseModel):
     fen: str
     player_id: str = "player_1"
     game_id: Optional[int] = None
+    user_move_uci: Optional[str] = None
 
 
 class StartGameRequest(BaseModel):
@@ -75,26 +78,44 @@ async def end_game(req: EndGameRequest, db: Session = Depends(get_db)):
 async def make_move(req: MoveRequest, db: Session = Depends(get_db)):
     engine = get_engine()
     try:
-        eval_before = engine.evaluate_position(req.fen)
-        best_move = engine.get_best_move(req.fen)
-        if not best_move:
-            raise HTTPException(status_code=400, detail="No legal moves available")
+        classification = "good"
+        eval_diff = 0.0
+        phase = "middlegame"
 
-        if req.game_id:
+        if req.user_move_uci:
+            try:
+                classification, eval_diff, phase = analyze_user_move(
+                    engine, req.fen, req.user_move_uci
+                )
+            except Exception:
+                pass
+
+        if req.game_id and req.user_move_uci:
+            board = chess.Board(req.fen)
+            move_num = board.fullmove_number
             move_record = Move(
                 game_id=req.game_id,
                 fen_before=req.fen,
-                move_uci=best_move,
-                eval_diff=0.0,
-                classification="good",
+                move_uci=req.user_move_uci,
+                eval_diff=eval_diff,
+                classification=classification,
+                phase=phase,
+                move_number=move_num,
             )
             db.add(move_record)
             db.commit()
 
+        eval_now = engine.evaluate_position(req.fen)
+        best_move = engine.get_best_move(req.fen)
+        if not best_move:
+            raise HTTPException(status_code=400, detail="No legal moves available")
+
         return {
             "move": best_move,
-            "evaluation": eval_before,
-            "classification": "good",
+            "evaluation": eval_now,
+            "classification": classification,
+            "eval_diff": eval_diff,
+            "phase": phase,
         }
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))

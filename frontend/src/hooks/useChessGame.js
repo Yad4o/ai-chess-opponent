@@ -14,6 +14,7 @@ export function useChessGame() {
   const [gameOver, setGameOver] = useState(null);
   const [gameStarted, setGameStarted] = useState(false);
   const gameRef = useRef(game);
+  const gameIdRef = useRef(null);
 
   function updateGame(newGame) {
     gameRef.current = newGame;
@@ -33,8 +34,11 @@ export function useChessGame() {
     try {
       const { game_id } = await api.startGame(PLAYER_ID);
       setGameId(game_id);
+      gameIdRef.current = game_id;
     } catch {
-      setGameId(`local_${Date.now()}`);
+      const localId = `local_${Date.now()}`;
+      setGameId(localId);
+      gameIdRef.current = localId;
     }
   }, []);
 
@@ -46,33 +50,42 @@ export function useChessGame() {
       const result = current.move(move);
       if (!result) return false;
 
+      const userMoveUci = result.from + result.to + (result.promotion || "");
       updateGame(current);
-      const newHistory = [
-        ...moveHistory,
+      setMoveHistory((prev) => [
+        ...prev,
         { move: result.san, color: result.color, fen: current.fen() },
-      ];
-      setMoveHistory(newHistory);
+      ]);
 
       if (current.isGameOver()) {
         const outcome = current.isCheckmate()
-          ? result.color === "w"
-            ? "white"
-            : "black"
+          ? result.color === "w" ? "white" : "black"
           : "draw";
         setGameOver(outcome);
-        if (gameId) {
-          try {
-            await api.endGame(gameId, current.pgn(), outcome);
-          } catch {}
+        const gid = gameIdRef.current;
+        if (gid && typeof gid === "number") {
+          try { await api.endGame(gid, current.pgn(), outcome); } catch {}
         }
         return true;
       }
 
       setIsAIThinking(true);
       try {
-        const data = await api.getAIMove(current.fen(), PLAYER_ID);
+        const gid = gameIdRef.current;
+        const data = await api.getAIMove(
+          current.fen(),
+          PLAYER_ID,
+          typeof gid === "number" ? gid : null,
+          userMoveUci
+        );
+
         const aiGame = new Chess(current.fen());
-        aiGame.move(data.move);
+        const aiResult = aiGame.move(data.move);
+        if (!aiResult) {
+          console.error("AI returned illegal move:", data.move);
+          setIsAIThinking(false);
+          return true;
+        }
         updateGame(aiGame);
         setMoveHistory((prev) => [
           ...prev,
@@ -84,10 +97,8 @@ export function useChessGame() {
         if (aiGame.isGameOver()) {
           const outcome = aiGame.isCheckmate() ? "black" : "draw";
           setGameOver(outcome);
-          if (gameId) {
-            try {
-              await api.endGame(gameId, aiGame.pgn(), outcome);
-            } catch {}
+          if (gid && typeof gid === "number") {
+            try { await api.endGame(gid, aiGame.pgn(), outcome); } catch {}
           }
         }
       } catch (err) {
@@ -98,10 +109,8 @@ export function useChessGame() {
 
       return true;
     },
-    [game, moveHistory, gameId]
+    []
   );
-
-  const orientation = "white";
 
   return {
     game,
@@ -112,7 +121,7 @@ export function useChessGame() {
     isAIThinking,
     gameOver,
     gameStarted,
-    orientation,
+    orientation: "white",
     makeMove,
     startNewGame,
     playerId: PLAYER_ID,
