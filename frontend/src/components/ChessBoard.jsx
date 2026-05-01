@@ -7,16 +7,16 @@ const LIGHT_SQUARE = "#d4c5a9";
 
 function useResponsiveBoardWidth() {
   const wrapperRef = useRef(null);
-  const [width, setWidth] = useState(480);
+  const [width, setWidth] = useState(420);
 
   useEffect(() => {
     function calculate() {
-      // Available width = viewport minus right panel (280px), eval bar (28px), gaps/padding (~80px)
-      const available = Math.min(
-        window.innerWidth - 280 - 28 - 80,
-        560
-      );
-      setWidth(Math.max(280, available));
+      // Width: viewport minus right panel (280) + eval bar (28) + gaps/padding (90)
+      const byWidth = window.innerWidth - 280 - 28 - 90;
+      // Height: viewport minus nav (60) + page padding (64) + player bar (64) + controls (52) + gaps (40)
+      const byHeight = window.innerHeight - 60 - 64 - 64 - 52 - 40;
+      const size = Math.min(byWidth, byHeight, 460);
+      setWidth(Math.max(260, size));
     }
     calculate();
     window.addEventListener("resize", calculate);
