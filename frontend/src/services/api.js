@@ -13,10 +13,15 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  getAIMove: (fen, playerId) =>
+  getAIMove: (fen, playerId, gameId = null, userMoveUci = null) =>
     request("/api/game/move", {
       method: "POST",
-      body: JSON.stringify({ fen, player_id: playerId }),
+      body: JSON.stringify({
+        fen,
+        player_id: playerId,
+        game_id: gameId,
+        user_move_uci: userMoveUci,
+      }),
     }),
 
   startGame: (playerId) =>
